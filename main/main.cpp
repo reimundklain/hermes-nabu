@@ -3,6 +3,7 @@
 #include "port.hpp"  // first: pulls in FreeRTOS.h ahead of task.h/queue.h
 
 #include <string>
+#include <string_view>
 
 #include "driver/i2c_master.h"
 #include "esp_app_desc.h"
@@ -28,6 +29,15 @@ constexpr gpio_num_t kI2cSclPin = GPIO_NUM_6;
 constexpr uint8_t kI2cGlitchFilter = 7;
 // Block this long for events, then run the core's timers.
 constexpr TickType_t kEventWait = pdMS_TO_TICKS(10);
+constexpr TickType_t kNoWait = 0;
+
+// Storage keys of the core's settings that change how Wi-Fi joins.
+constexpr std::string_view kWifiSsidKey = "wifi_ssid";
+constexpr std::string_view kWifiPassKey = "wifi_pass";
+
+// Reasons handed to the core when the connection goes away.
+constexpr const char* kClosedReason = "closed";
+constexpr const char* kLostReason = "disconnected";
 
 hgp::EspSystem g_system;
 hgp::NvsStorage g_storage;
@@ -147,7 +157,7 @@ void dispatch(hg::App& app, hgp::Event& ev) {
       app.on_transport_text(std::string_view(text, ev.len));
       break;
     case EventType::WsBinary: app.on_transport_binary(ev.data, ev.len); break;
-    case EventType::WsClosed: app.on_transport_closed(text ? text : "closed"); break;
+    case EventType::WsClosed: app.on_transport_closed(text ? text : kClosedReason); break;
     case EventType::Mic:
       app.on_mic_samples(reinterpret_cast<const int16_t*>(ev.data), ev.len / sizeof(int16_t));
       break;
@@ -199,7 +209,7 @@ extern "C" void app_main(void) {
 
   static hg::App app(hal, profile);
   app.on_setting_changed = [](std::string_view key) {
-    if (key == "wifi_ssid" || key == "wifi_pass") g_wifi.reconfigure();
+    if (key == kWifiSsidKey || key == kWifiPassKey) g_wifi.reconfigure();
   };
   app.begin();
   hgp::console::begin();
@@ -210,10 +220,10 @@ extern "C" void app_main(void) {
       do {
         dispatch(app, ev);
         hgp::events::release(ev);
-      } while (hgp::events::receive(ev, 0));
+      } while (hgp::events::receive(ev, kNoWait));
     }
     // A loss whose WsClosed event was dropped; harmless if it was delivered too.
-    if (g_transport.take_lost()) app.on_transport_closed("disconnected");
+    if (g_transport.take_lost()) app.on_transport_closed(kLostReason);
     if (g_mute.poll()) on_mute_changed(app);
     g_buttons.poll(app);
     g_wifi.tick(g_system.now_ms());

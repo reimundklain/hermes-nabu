@@ -40,6 +40,7 @@ Follow ESP-IDF and the Hermes Gadget SDK style:
 - Naming: `snake_case` for functions/variables, `PascalCase` for types, trailing `_` for private members.
 - Prefer `this->` for member access.
 - 2- or 4-space indentation (match existing core).
+- No magic strings or numbers: bind pins, register addresses and values, timeouts, sizes, protocol message types and field names, setting keys and task names to a named `constexpr` or `enum class` in the narrowest scope that fits. Exceptions: obvious tautologies (`0`, `1`, `""`), GPIO on/off levels, and register setup tables whose rows are keyed by a named register and commented. Files copied from the SDK stay as upstream wrote them.
 - Logging: `ESP_LOGI` / `ESP_LOGW` / `ESP_LOGE` with a clear TAG.
 - Explicit `esp_err_t` checking.
 - No heap allocation in ISRs.

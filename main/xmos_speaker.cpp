@@ -19,9 +19,17 @@ constexpr gpio_num_t kWsPin = GPIO_NUM_7;
 constexpr gpio_num_t kDataPin = GPIO_NUM_10;
 constexpr gpio_num_t kAmpEnablePin = GPIO_NUM_47;
 
-// About 1.5 s of mono PCM16; the server keeps 0.5 s ahead.
-constexpr size_t kBufferBytes = XmosSpeaker::kRate * 3 / 2 * sizeof(int16_t);
+constexpr uint32_t kMsPerSecond = 1000;
 
+// Mono PCM16; the server keeps 0.5 s ahead.
+constexpr uint32_t kBufferMs = 1500;
+constexpr size_t kBufferBytes = XmosSpeaker::kRate * kBufferMs / kMsPerSecond * sizeof(int16_t);
+// A static stream buffer needs one byte of storage beyond its capacity.
+constexpr size_t kStreamBufferSpare = 1;
+// Wake the playback task as soon as any audio arrives.
+constexpr size_t kTriggerLevelBytes = 1;
+
+constexpr const char* kTaskName = "nabu-spk";
 constexpr uint32_t kTaskStack = 4096;
 constexpr UBaseType_t kTaskPriority = 7;
 constexpr TickType_t kReceiveWait = pdMS_TO_TICKS(20);
@@ -30,7 +38,8 @@ constexpr uint32_t kWriteTimeoutMs = 200;
 
 // PCM16 into the top half of a 32-bit slot.
 constexpr int32_t kSampleScale = 1 << 16;
-constexpr uint32_t kMsPerSecond = 1000;
+constexpr size_t kLeftSlot = 0;
+constexpr size_t kRightSlot = 1;
 
 }  // namespace
 
@@ -56,14 +65,14 @@ bool XmosSpeaker::begin(Aic3204& dac) {
     return false;
   }
 
-  auto* storage = static_cast<uint8_t*>(heap_caps_malloc(kBufferBytes + 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+  auto* storage = static_cast<uint8_t*>(heap_caps_malloc(kBufferBytes + kStreamBufferSpare, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
   static StaticStreamBuffer_t control;
-  if (storage) buffer_ = xStreamBufferCreateStatic(kBufferBytes, 1, storage, &control);
+  if (storage) buffer_ = xStreamBufferCreateStatic(kBufferBytes, kTriggerLevelBytes, storage, &control);
   if (!buffer_) {
     ESP_LOGE(TAG, "no memory for the %u byte playback buffer", static_cast<unsigned>(kBufferBytes));
     return false;
   }
-  if (xTaskCreate(&XmosSpeaker::task, "nabu-spk", kTaskStack, this, kTaskPriority, nullptr) != pdPASS) {
+  if (xTaskCreate(&XmosSpeaker::task, kTaskName, kTaskStack, this, kTaskPriority, nullptr) != pdPASS) {
     ESP_LOGE(TAG, "can't start the playback task");
     return false;
   }
@@ -148,8 +157,8 @@ void XmosSpeaker::play_chunk() {
   for (size_t i = 0; i < frames; ++i) {
     peak = std::max(peak, std::abs(static_cast<int32_t>(mono_[i])));
     const int32_t sample = static_cast<int32_t>(mono_[i]) * kSampleScale;
-    stereo_[i * kSlots] = sample;
-    stereo_[i * kSlots + 1] = sample;
+    stereo_[i * kSlots + kLeftSlot] = sample;
+    stereo_[i * kSlots + kRightSlot] = sample;
   }
   size_t written = 0;
   const esp_err_t err = i2s_channel_write(tx_, stereo_, frames * kSlots * sizeof(int32_t), &written, kWriteTimeoutMs);

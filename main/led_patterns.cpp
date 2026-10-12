@@ -50,6 +50,8 @@ RingFrame breathe(Rgb color, uint32_t now_ms, uint32_t period_ms) {
 // Two opposite heads with fading trails, like the stock firmware's spin.
 RingFrame spin(Rgb color, uint32_t now_ms, uint32_t step_ms, Direction direction) {
   constexpr size_t kOpposite = kRingSize / 2;
+  constexpr size_t kNearTrail = 1;
+  constexpr size_t kFarTrail = 2;
   const size_t step = (now_ms / step_ms) % kRingSize;
   const size_t head = direction == Direction::Clockwise ? step : kRingSize - 1 - step;
   const size_t behind = direction == Direction::Clockwise ? kRingSize - 1 : 1;
@@ -57,8 +59,8 @@ RingFrame spin(Rgb color, uint32_t now_ms, uint32_t step_ms, Direction direction
   for (size_t offset : {size_t{0}, kOpposite}) {
     const size_t lead = (head + offset) % kRingSize;
     frame[lead] = color;
-    frame[(lead + behind) % kRingSize] = scaled(color, kTrailNear);
-    frame[(lead + 2 * behind) % kRingSize] = scaled(color, kTrailFar);
+    frame[(lead + kNearTrail * behind) % kRingSize] = scaled(color, kTrailNear);
+    frame[(lead + kFarTrail * behind) % kRingSize] = scaled(color, kTrailFar);
   }
   return frame;
 }

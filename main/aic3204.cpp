@@ -20,6 +20,8 @@ constexpr uint32_t kResetSettleUs = 1000;
 // power on, or the output pops.
 constexpr int64_t kSoftStartUs = 2'500'000;
 
+constexpr int64_t kUsPerMs = 1000;
+
 // Page 0
 constexpr uint8_t kPageSelect = 0x00;
 constexpr uint8_t kSoftwareReset = 0x01;
@@ -116,13 +118,13 @@ esp_err_t Aic3204::begin(i2c_master_bus_handle_t bus) {
     return err;
   }
 
-  if ((err = select_page(0)) != ESP_OK) return err;
+  if ((err = select_page(Page::Control)) != ESP_OK) return err;
   if ((err = write(kSoftwareReset, kResetValue)) != ESP_OK) return err;
   esp_rom_delay_us(kResetSettleUs);
   for (const auto& w : kPage0Setup) {
     if ((err = write(w.reg, w.value)) != ESP_OK) return err;
   }
-  if ((err = select_page(1)) != ESP_OK) return err;
+  if ((err = select_page(Page::Analog)) != ESP_OK) return err;
   for (const auto& w : kPage1Setup) {
     if ((err = write(w.reg, w.value)) != ESP_OK) return err;
   }
@@ -133,8 +135,8 @@ esp_err_t Aic3204::begin(i2c_master_bus_handle_t bus) {
 esp_err_t Aic3204::power_up() {
   if (!device_) return ESP_ERR_INVALID_STATE;
   const int64_t wait_us = drivers_on_at_us_ + kSoftStartUs - esp_timer_get_time();
-  if (wait_us > 0) vTaskDelay(pdMS_TO_TICKS(wait_us / 1000));
-  esp_err_t err = select_page(0);
+  if (wait_us > 0) vTaskDelay(pdMS_TO_TICKS(wait_us / kUsPerMs));
+  esp_err_t err = select_page(Page::Control);
   if (err == ESP_OK) err = write(kDacSetup1, kDacChannelsOn);
   if (err != ESP_OK) return err;
   ESP_LOGI(TAG, "ready");
@@ -145,13 +147,13 @@ esp_err_t Aic3204::power_up() {
 void Aic3204::log_status() {
   uint8_t flags1 = 0;
   uint8_t flags2 = 0;
-  if (select_page(0) != ESP_OK || read(kDacFlags1, flags1) != ESP_OK || read(kDacFlags2, flags2) != ESP_OK) return;
+  if (select_page(Page::Control) != ESP_OK || read(kDacFlags1, flags1) != ESP_OK || read(kDacFlags2, flags2) != ESP_OK) return;
   ESP_LOGI(TAG, "power flags 0x%02x, gain flags 0x%02x", flags1, flags2);
 }
 
 esp_err_t Aic3204::set_volume(uint8_t percent) {
   if (!device_) return ESP_ERR_INVALID_STATE;
-  esp_err_t err = select_page(0);
+  esp_err_t err = select_page(Page::Control);
   if (err != ESP_OK) return err;
   if (percent == 0) return write(kDacSetup2, kDacMuted);
   const int clamped = percent > kPercentMax ? kPercentMax : percent;
@@ -162,7 +164,7 @@ esp_err_t Aic3204::set_volume(uint8_t percent) {
   return write(kDacSetup2, kDacUnmuted);
 }
 
-esp_err_t Aic3204::select_page(uint8_t page) { return write(kPageSelect, page); }
+esp_err_t Aic3204::select_page(Page page) { return write(kPageSelect, static_cast<uint8_t>(page)); }
 
 esp_err_t Aic3204::read(uint8_t reg, uint8_t& value) {
   const esp_err_t err = i2c_master_transmit_receive(device_, &reg, sizeof(reg), &value, sizeof(value), kTimeoutMs);

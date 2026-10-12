@@ -12,9 +12,12 @@ namespace {
 
 const char* TAG = "nabu.xmos";
 
-constexpr gpio_num_t kResetPin = GPIO_NUM_4;  // active high
+constexpr gpio_num_t kResetPin = GPIO_NUM_4;
+constexpr int kResetAsserted = 1;  // active high
+constexpr int kResetReleased = 0;
 constexpr uint32_t kResetPulseUs = 1000;
 constexpr int64_t kBootTimeUs = 3'000'000;
+constexpr int64_t kUsPerMs = 1000;
 
 constexpr uint16_t kAddress = 0x42;
 constexpr uint32_t kBusSpeedHz = 400'000;
@@ -41,13 +44,13 @@ esp_err_t XmosControl::reset() {
   io.pin_bit_mask = 1ULL << kResetPin;
   io.mode = GPIO_MODE_OUTPUT;
   esp_err_t err = gpio_config(&io);
-  if (err == ESP_OK) err = gpio_set_level(kResetPin, 1);
+  if (err == ESP_OK) err = gpio_set_level(kResetPin, kResetAsserted);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "reset on GPIO %d failed: %s", kResetPin, esp_err_to_name(err));
     return err;
   }
   esp_rom_delay_us(kResetPulseUs);
-  err = gpio_set_level(kResetPin, 0);
+  err = gpio_set_level(kResetPin, kResetReleased);
   reset_at_us_ = esp_timer_get_time();
   return err;
 }
@@ -55,7 +58,7 @@ esp_err_t XmosControl::reset() {
 esp_err_t XmosControl::configure(i2c_master_bus_handle_t bus) {
   const int64_t booted_at_us = reset_at_us_ + kBootTimeUs;
   const int64_t wait_us = booted_at_us - esp_timer_get_time();
-  if (wait_us > 0) vTaskDelay(pdMS_TO_TICKS(wait_us / 1000));
+  if (wait_us > 0) vTaskDelay(pdMS_TO_TICKS(wait_us / kUsPerMs));
 
   i2c_device_config_t dev = {};
   dev.dev_addr_length = I2C_ADDR_BIT_LEN_7;
@@ -90,6 +93,7 @@ esp_err_t XmosControl::write_stage(uint8_t channel_register, uint8_t stage) {
 // The reply is a status byte followed by the value.
 esp_err_t XmosControl::read_stage(uint8_t channel_register, uint8_t& stage) {
   constexpr uint8_t kReplyLength = 2;
+  constexpr size_t kReplyValue = 1;
   const uint8_t request[] = {kConfigurationService, static_cast<uint8_t>(channel_register | kReadBit), kReplyLength};
   uint8_t reply[kReplyLength] = {};
   esp_err_t err = i2c_master_transmit(device_, request, sizeof(request), kTimeoutMs);
@@ -98,7 +102,7 @@ esp_err_t XmosControl::read_stage(uint8_t channel_register, uint8_t& stage) {
     ESP_LOGE(TAG, "reading stage register 0x%02x failed: %s", channel_register, esp_err_to_name(err));
     return err;
   }
-  stage = reply[1];
+  stage = reply[kReplyValue];
   return ESP_OK;
 }
 

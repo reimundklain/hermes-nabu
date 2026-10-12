@@ -15,6 +15,7 @@ constexpr gpio_num_t kBclkPin = GPIO_NUM_13;
 constexpr gpio_num_t kWsPin = GPIO_NUM_14;
 constexpr gpio_num_t kDataPin = GPIO_NUM_15;
 
+constexpr const char* kTaskName = "nabu-mic";
 constexpr uint32_t kTaskStack = 4096;
 constexpr UBaseType_t kTaskPriority = 6;
 constexpr TickType_t kIdlePoll = pdMS_TO_TICKS(10);
@@ -49,7 +50,7 @@ bool XmosMic::begin() {
     ESP_LOGE(TAG, "I2S init failed: %s", esp_err_to_name(err));
     return false;
   }
-  if (xTaskCreate(&XmosMic::task, "nabu-mic", kTaskStack, this, kTaskPriority, nullptr) != pdPASS) {
+  if (xTaskCreate(&XmosMic::task, kTaskName, kTaskStack, this, kTaskPriority, nullptr) != pdPASS) {
     ESP_LOGE(TAG, "can't start the capture task");
     return false;
   }

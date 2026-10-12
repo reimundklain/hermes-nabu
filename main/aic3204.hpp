@@ -25,9 +25,12 @@ class Aic3204 {
   void log_status();
 
  private:
+  // Register pages: control and DAC on page 0, analog and power on page 1.
+  enum class Page : uint8_t { Control = 0, Analog = 1 };
+
   esp_err_t write(uint8_t reg, uint8_t value);
   esp_err_t read(uint8_t reg, uint8_t& value);
-  esp_err_t select_page(uint8_t page);
+  esp_err_t select_page(Page page);
   i2c_master_dev_handle_t device_ = nullptr;
   int64_t drivers_on_at_us_ = 0;
 };
