@@ -1,7 +1,8 @@
-.ignore/
+/ignore/
 /build/
 /sdkconfig
 /sdkconfig.old
 /managed_components/
 .direnv/
 result
+!.envrc
