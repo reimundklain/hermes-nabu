@@ -24,6 +24,24 @@ as an ESP-IDF component and pinned to an exact commit. This repository holds
 the Voice PE port: the ESP32 drivers the core runs on, plus the board-specific
 parts (LED ring, XMOS, speaker DAC, mute switch).
 
+## Flash a release
+
+No build needed. Download `hermes-nabu-<version>.bin` and `SHA256SUMS` from
+[Releases](https://github.com/reimundklain/hermes-nabu/releases), connect the
+device over USB-C and flash the full image at offset `0x0` with
+[esptool](https://github.com/espressif/esptool) (`pip install esptool` or
+`nix shell nixpkgs#esptool`):
+
+```sh
+sha256sum -c SHA256SUMS --ignore-missing
+esptool --chip esp32s3 write-flash 0x0 hermes-nabu-<version>.bin
+```
+
+esptool finds the port on its own; pass `-p /dev/ttyACM0` to pick one. If it
+cannot connect, put the device into bootloader mode (see
+[Recovery](#recovery--bootloader-mode)). Then continue with
+[Configuration](#configuration).
+
 ## Requirements
 
 - [Nix](https://nixos.org) with flakes enabled
