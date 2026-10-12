@@ -40,6 +40,9 @@ constexpr std::string_view kWifiPassKey = "wifi_pass";
 constexpr const char* kClosedReason = "closed";
 constexpr const char* kLostReason = "disconnected";
 
+// The core's console command behind Hermes /new.
+constexpr std::string_view kNewSessionCommand = "new-session";
+
 hgp::EspSystem g_system;
 hgp::NvsStorage g_storage;
 hgp::WsTransport g_transport;
@@ -105,15 +108,19 @@ void init_audio(hg::Hal& hal) {
   else ESP_LOGW(TAG, "running without the speaker");
 }
 
-// Muting mid-utterance discards it; a reply already under way keeps playing.
+// Muting ends the conversation: an utterance under way is discarded, a reply
+// stops, and the next turn starts in a fresh Hermes session.
 void on_mute_changed(hg::App& app) {
   const bool muted = g_mute.muted();
   g_mic.set_muted(muted);
   ESP_LOGI(TAG, "microphone %s", muted ? "muted" : "unmuted");
-  if (muted && app.model().screen == hg::Screen::Listening) {
+  if (!muted) return;
+  if (app.model().screen == hg::Screen::Listening) {
     app.on_button(hg::Button::Cancel, true);
     app.on_button(hg::Button::Cancel, false);
   }
+  const std::string reply = app.console(kNewSessionCommand);
+  ESP_LOGI(TAG, "conversation ended: %s", reply.c_str());
 }
 
 nabu::RingFrame ring_now(const hg::UiModel& model) {
