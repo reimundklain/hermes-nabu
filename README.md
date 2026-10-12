@@ -125,8 +125,11 @@ Each step gets flashed and tested on the device before moving on.
 - [x] Mic capture through the XMOS, push-to-talk on the center button
 - [x] Speaker playback through the XMOS and the AIC3204 DAC
 - [x] XMOS initialization (echo cancellation, noise suppression, gain control)
-- [ ] Hardware mute switch: no capture while muted, red marks on the ring
+- [x] Hardware mute switch: no capture while muted, red marks on the ring
 - [ ] OTA with a two-slot partition table and rollback
+- [ ] On-device wake word "Okay Nabu" (microWakeWord on TFLite Micro, fed
+      from XMOS channel 1). Open: tap mode vs. a core API to start a
+      hands-free turn; detection while a reply plays
 
 The gadget protocol (JSON control frames and binary audio frames over a
 WebSocket) is documented in `docs/protocol.md` of the Hermes Gadget SDK.
