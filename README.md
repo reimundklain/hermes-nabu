@@ -92,6 +92,7 @@ You can always reflash the device, including back to the stock firmware:
 | `main/xmos_*`            | XMOS control, mic in and speaker out over I2S  |
 | `main/aic3204.*`         | Speaker DAC setup and volume                   |
 | `main/mute_switch.*`     | Hardware mute switch                           |
+| `main/net_diag.*`        | Wi-Fi, IP and DNS facts for the `diag` command |
 | `main/idf_component.yml` | Component dependencies, Gadget core pin        |
 | `dependencies.lock`      | Resolved component versions                    |
 | `sdkconfig.defaults`     | Board settings (target, flash, PSRAM, console) |

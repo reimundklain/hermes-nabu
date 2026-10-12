@@ -11,6 +11,7 @@
 #include "esp_log.h"
 #include "led_ring.hpp"
 #include "mute_switch.hpp"
+#include "net_diag.hpp"
 #include "aic3204.hpp"
 #include "nvs_flash.h"
 #include "sdkconfig.h"
@@ -219,6 +220,7 @@ extern "C" void app_main(void) {
   app.on_setting_changed = [](std::string_view key) {
     if (key == kWifiSsidKey || key == kWifiPassKey) g_wifi.reconfigure();
   };
+  app.on_diag = &nabu::add_net_diag;
   app.begin();
   // Without a USB host, the console's reads fail at once and its REPL task
   // spins above this task's priority, so the main loop would never run. USB-C

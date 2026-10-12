@@ -5,6 +5,7 @@ idf_component_register(
         "led_ring.cpp"
         "main.cpp"
         "mute_switch.cpp"
+        "net_diag.cpp"
         "port_buttons.cpp"
         "port_console.cpp"
         "port_events.cpp"
