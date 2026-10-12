@@ -22,7 +22,7 @@ portable C++17 core of the
 [Hermes Gadget SDK](https://github.com/Adolanium/hermes-gadget-sdk), pulled in
 as an ESP-IDF component and pinned to an exact commit. This repository holds
 the Voice PE port: the ESP32 drivers the core runs on, plus the board-specific
-parts (LED ring, XMOS, mute switch, dial).
+parts (LED ring, XMOS, speaker DAC, mute switch).
 
 ## Requirements
 
