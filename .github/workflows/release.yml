@@ -1,0 +1,50 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+env:
+  PROJECT_NAME: hermes-nabu
+  DIST_DIR: dist
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
+
+      - name: Build firmware
+        run: nix develop --command idf.py build merge-bin --format raw --output merged.bin
+
+      - name: Check tag against PROJECT_VER
+        id: version
+        run: |
+          project_version="$(jq -r .project_version build/project_description.json)"
+          tag_version="${GITHUB_REF_NAME#v}"
+          if [ "$project_version" != "$tag_version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match PROJECT_VER $project_version in CMakeLists.txt"
+            exit 1
+          fi
+          echo "version=$project_version" >> "$GITHUB_OUTPUT"
+
+      - name: Collect release files
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          mkdir "$DIST_DIR"
+          cp build/merged.bin "$DIST_DIR/$PROJECT_NAME-$VERSION.bin"
+          cp "build/$(jq -r .app_bin build/project_description.json)" "$DIST_DIR/$PROJECT_NAME-$VERSION-app.bin"
+          (cd "$DIST_DIR" && sha256sum -- *.bin > SHA256SUMS)
+          cat "$DIST_DIR/SHA256SUMS"
+
+      - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        with:
+          draft: true
+          files: ${{ env.DIST_DIR }}/*
