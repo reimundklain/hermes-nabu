@@ -1,0 +1,30 @@
+dependencies:
+  espressif/esp_websocket_client:
+    component_hash: dc00233af846f3a744ada283a300e0d586040aadc3ee67361645ecdce4523672
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.0'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.8.0
+  hermes_gadget_core:
+    component_hash: 00d692434c5b88d8e45840a225025308843200e609442276b2454b8dbc3edc6e
+    dependencies: []
+    source:
+      git: https://github.com/Adolanium/hermes-gadget-sdk.git
+      path: firmware/core
+      type: git
+    version: 66b4af0f51485830b9598669869a82374d5fcb2a
+  idf:
+    source:
+      type: idf
+    version: 5.5.2
+direct_dependencies:
+- espressif/esp_websocket_client
+- hermes_gadget_core
+- idf
+manifest_hash: 6a28f9530d827d854a033f3d8d7744a80ec54b1d289a2805319daf1e223dca15
+target: esp32s3
+version: 2.0.0

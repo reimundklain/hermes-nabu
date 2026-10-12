@@ -1,0 +1,9 @@
+dependencies:
+  idf: ">=5.3"
+  espressif/esp_websocket_client: "^1.2.3"
+  # Portable device core (protocol, pairing, actions, OTA). Pinned to an exact
+  # upstream commit; bump deliberately and re-test.
+  hermes_gadget_core:
+    git: https://github.com/Adolanium/hermes-gadget-sdk.git
+    path: firmware/core
+    version: 66b4af0f51485830b9598669869a82374d5fcb2a

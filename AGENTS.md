@@ -15,8 +15,9 @@ Hermes Agent itself (and its Gadget plugin) runs on a host (laptop / Pi / server
 
 ## Architecture
 
-- Prefer the shared C++17 core from hermes-gadget-sdk (`firmware/core`).
-- Board-specific code lives in a new board profile / port for the Voice PE.
+- Standalone project on the shared C++17 core from hermes-gadget-sdk (`firmware/core`), consumed as an ESP-IDF managed component pinned to an exact commit in `main/idf_component.yml`. Never edit `managed_components/`; bump the pin deliberately.
+- The port lives in `main/`: generic ESP32 drivers copied from the SDK's `firmware/esp32/main` (keep them close to upstream, record every copy or change in `NOTICE`) plus Voice PE-specific drivers.
+- The App reaches the hardware only through the `hg::Hal` interfaces; driver tasks post events, and only the main loop calls into `hg::App`.
 - Audio path should leverage the XMOS chip (I2C control + I2S) for clean AEC/NS/AGC instead of raw I2S if possible.
 - LED ring shows states: ready, listening, thinking, speaking, error, pairing.
 - Center button: hold-to-talk (and confirm prompts). Mute switch should be respected.
@@ -24,7 +25,7 @@ Hermes Agent itself (and its Gadget plugin) runs on a host (laptop / Pi / server
 
 ## Build & Development
 
-- Target: ESP32-S3, ESP-IDF (version pinned by the Gadget SDK or explicitly documented).
+- Target: ESP32-S3, ESP-IDF v5.5.2 pinned by `flake.nix` (the SDK core needs ≥ 5.3).
 - Use the project’s ESP-IDF environment and build commands.
 - Prefer `idf.py` workflows.
 - Never edit generated files or `sdkconfig` directly — use `sdkconfig.defaults`.

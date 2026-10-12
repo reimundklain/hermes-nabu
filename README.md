@@ -9,6 +9,13 @@ mute). It streams microphone audio to Hermes over a WebSocket and plays back
 the audio it receives. Speech-to-text, the assistant itself, and
 text-to-speech all run on the host.
 
+The protocol side (handshake, pairing, actions, heartbeat, OTA) is the
+portable C++17 core of the
+[Hermes Gadget SDK](https://github.com/Adolanium/hermes-gadget-sdk), pulled in
+as an ESP-IDF component and pinned to an exact commit. This repository holds
+the Voice PE port: the ESP32 drivers the core runs on, plus the board-specific
+parts (LED ring, XMOS, mute switch, dial).
+
 ## Requirements
 
 - [Nix](https://nixos.org) with flakes enabled
@@ -26,8 +33,30 @@ idf.py build
 idf.py -p /dev/ttyACM0 flash monitor
 ```
 
+The first build downloads the pinned components (Gadget core,
+`esp_websocket_client`) into `managed_components/`.
+
 The console runs over the USB-C port (USB Serial/JTAG), so the device shows
 up as `/dev/ttyACM*`. Leave `idf.py monitor` with `Ctrl+]`.
+
+## Configuration
+
+Wi-Fi and the Hermes endpoint are set over the serial console and stored in
+NVS. Nothing is compiled in:
+
+```text
+gadget> set wifi_ssid MyWifi
+gadget> set wifi_pass secret
+gadget> set server ws://<hermes-host>:8765/gadget
+gadget> status
+```
+
+`hermes gadget info` on the host prints the endpoint. When the device first
+connects, `status` shows a pairing code; approve it on the host with
+`hermes pairing approve gadget <code>`. `help` lists all commands.
+
+For development builds, `idf.py menuconfig` → *Hermes Nabu* sets defaults
+that NVS values override. They end up in the untracked `sdkconfig`.
 
 Run `nix fmt` to format the Nix files.
 
@@ -45,12 +74,16 @@ You can always reflash the device, including back to the stock firmware:
 
 ## Project layout
 
-| Path                 | Purpose                                         |
-| -------------------- | ----------------------------------------------- |
-| `flake.nix`          | Dev shell (ESP-IDF, toolchain, formatter)       |
-| `CMakeLists.txt`     | ESP-IDF project definition                      |
-| `main/`              | Application component                           |
-| `sdkconfig.defaults` | Board settings (target, flash, PSRAM, console)  |
+| Path                     | Purpose                                        |
+| ------------------------ | ---------------------------------------------- |
+| `flake.nix`              | Dev shell (ESP-IDF, toolchain, formatter)      |
+| `CMakeLists.txt`         | ESP-IDF project definition                     |
+| `main/main.cpp`          | Entry point: wires drivers to `hg::App`        |
+| `main/port*`             | ESP32 HAL drivers (Wi-Fi, WebSocket, NVS, …)   |
+| `main/idf_component.yml` | Component dependencies, Gadget core pin        |
+| `dependencies.lock`      | Resolved component versions                    |
+| `sdkconfig.defaults`     | Board settings (target, flash, PSRAM, console) |
+| `NOTICE`                 | Provenance and license of code from the SDK    |
 
 `sdkconfig` is generated from `sdkconfig.defaults` during the build and is
 not tracked. Put persistent configuration changes into `sdkconfig.defaults`.
@@ -82,12 +115,13 @@ I2C. See `esphome/components/voice_kit/` upstream for its protocol and DFU.
 Each step gets flashed and tested on the device before moving on.
 
 - [x] Minimal app that logs over serial
-- [ ] Wi-Fi connection
-- [ ] WebSocket connection to the Hermes gadget endpoint, send `hello` frame
+- [x] Gadget core integrated, Wi-Fi and WebSocket transport ported
+- [x] On device: join Wi-Fi, connect to Hermes (`ws://` and `wss://`), pair
 - [ ] Push-to-talk on the center button, status on the LED ring
 - [ ] Mic capture, stream as PCM16 chunks
 - [ ] Speaker playback
 - [ ] XMOS initialization for better audio quality
+- [ ] OTA with a two-slot partition table and rollback
 
 The gadget protocol (JSON control frames and binary audio frames over a
 WebSocket) is documented in `docs/protocol.md` of the Hermes Gadget SDK.
