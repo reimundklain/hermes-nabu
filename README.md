@@ -1,6 +1,14 @@
 # hermes-nabu
 
-Thin-client firmware for the
+> [!IMPORTANT]
+> **Unofficial community project.** hermes-nabu is not affiliated with,
+> endorsed by, or supported by Nabu Casa, the Open Home Foundation, Home
+> Assistant, ESPHome, or Nous Research. "Home Assistant" is a trademark of the
+> Open Home Foundation, "Hermes" and "Hermes Agent" are trademarks of Nous
+> Research. These names are used only to describe the hardware and software
+> this firmware works with.
+
+Unofficial thin-client firmware for the
 [Home Assistant Voice Preview Edition](https://github.com/esphome/home-assistant-voice-pe)
 (ESP32-S3), without Home Assistant.
 

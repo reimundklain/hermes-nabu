@@ -1,5 +1,5 @@
 {
-  description = "hermes-nabu: thin-client firmware for the Home Assistant Voice PE (ESP32-S3)";
+  description = "hermes-nabu: unofficial thin-client firmware for the Home Assistant Voice PE (ESP32-S3)";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
