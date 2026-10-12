@@ -140,6 +140,16 @@ Each step gets flashed and tested on the device before moving on.
 - [ ] On-device wake word (microWakeWord on TFLite Micro, fed
       from XMOS channel 1). Open: tap mode vs. a core API to start a
       hands-free turn; detection while a reply plays
+- [ ] Rotary dial read through PCNT: volume by default, the level shown as
+      an arc on the ring and saved once the dial rests
+- [ ] Dial answers prompts: turn to pick yes or no on the ring, press to
+      confirm
+- [ ] Dial menu defined by the host: Hermes sends a list of slots (label,
+      color), turning picks one on the ring, and a settled choice goes back
+      as an `event`. Candidates: switch model, set reasoning effort or reply
+      length for the next turn, switch persona or session. Open: how to
+      enter the menu without starting a talk turn (double press vs. press
+      and turn); plugin-side handling of events without an LLM round trip
 
 The gadget protocol (JSON control frames and binary audio frames over a
 WebSocket) is documented in `docs/protocol.md` of the Hermes Gadget SDK.
