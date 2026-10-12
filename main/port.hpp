@@ -2,7 +2,7 @@
 // driver events (Wi-Fi, WebSocket, console) onto the app task.
 //
 // Trimmed from hermes-gadget-sdk firmware/esp32/main/port.hpp to the parts
-// the Voice PE uses; see NOTICE.
+// the Voice PE uses (ButtonConfig from board.hpp); see NOTICE.
 //
 // Threading rule: hg::App is only touched by the app task (app_main's loop).
 // Driver tasks and callbacks post Events; the loop dispatches them.
@@ -114,6 +114,25 @@ class WsTransport final : public hg::Transport {
   // message's first frame clears it.
   std::string rx_;
   uint8_t rx_opcode_ = 0;
+};
+
+struct ButtonConfig {
+  int talk = -1, cancel = -1, up = -1, down = -1;  // active-low GPIOs, -1 = absent
+};
+
+class Buttons {
+ public:
+  void begin(const ButtonConfig& cfg);
+  void poll(hg::App& app);  // call every ~10 ms from the app task
+
+ private:
+  struct Button {
+    int gpio = -1;
+    hg::Button id = hg::Button::Talk;
+    bool pressed = false;
+    uint8_t stable = 0;
+  };
+  Button buttons_[4];
 };
 
 // Station mode only. The SDK's phone setup network is left out: the Voice PE

@@ -1,6 +1,8 @@
 dependencies:
   idf: ">=5.3"
   espressif/esp_websocket_client: "^1.2.3"
+  # WS2812-style LED ring over RMT
+  espressif/led_strip: "^3"
   # Portable device core (protocol, pairing, actions, OTA). Pinned to an exact
   # upstream commit; bump deliberately and re-test.
   hermes_gadget_core:

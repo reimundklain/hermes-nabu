@@ -7,13 +7,15 @@ Copied from firmware/drivers/ unchanged:
   main/ws_link.hpp
 
 Copied from firmware/esp32/main/ unchanged:
+  main/port_buttons.cpp
   main/port_events.cpp
   main/port_storage.cpp
   main/port_system.cpp
   main/port_ws.cpp
 
 Copied from firmware/esp32/main/ and modified:
-  main/port.hpp           trimmed to the drivers this board uses
+  main/port.hpp           trimmed to the drivers this board uses, plus
+                          ButtonConfig from board.hpp
   main/port_console.cpp   without the wifi-setup command
   main/port_wifi.cpp      station mode only, no phone setup network
   main/Kconfig.projbuild  defaults menu only

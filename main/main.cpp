@@ -4,6 +4,7 @@
 
 #include "esp_app_desc.h"
 #include "esp_log.h"
+#include "led_ring.hpp"
 #include "nvs_flash.h"
 #include "sdkconfig.h"
 
@@ -11,6 +12,7 @@ namespace {
 
 const char* TAG = "nabu.main";
 constexpr const char* kBoardName = "voice-pe";
+constexpr int kCenterButtonGpio = 0;
 // Block this long for events, then run the core's timers.
 constexpr TickType_t kEventWait = pdMS_TO_TICKS(10);
 
@@ -18,6 +20,21 @@ hgp::EspSystem g_system;
 hgp::NvsStorage g_storage;
 hgp::WsTransport g_transport;
 hgp::Wifi g_wifi;
+hgp::Buttons g_buttons;
+nabu::LedRing g_ring;
+hg::Screen g_logged_screen = hg::Screen::Boot;
+
+// Without a display, the serial log is where the pairing code shows up.
+void log_screen_change(const hg::UiModel& model) {
+  if (model.screen == g_logged_screen) return;
+  g_logged_screen = model.screen;
+  if (model.screen == hg::Screen::Pairing) {
+    ESP_LOGI(TAG, "state: pairing, code %s (approve: hermes pairing approve gadget %s)", model.code.c_str(),
+             model.code.c_str());
+    return;
+  }
+  ESP_LOGI(TAG, "state: %s", hg::screen_name(model.screen));
+}
 
 void init_nvs() {
   esp_err_t err = nvs_flash_init();
@@ -68,6 +85,13 @@ extern "C" void app_main(void) {
   const char* version = esp_app_get_description()->version;
   ESP_LOGI(TAG, "hermes-nabu %s on %s", version, kBoardName);
 
+  if (!g_ring.begin()) ESP_LOGW(TAG, "running without the LED ring");
+  g_ring.show(nabu::ring_frame(hg::Screen::Boot, g_system.now_ms()));
+
+  hgp::ButtonConfig buttons;
+  buttons.talk = kCenterButtonGpio;
+  g_buttons.begin(buttons);
+
   // Wi-Fi first: the radio is the entropy source for the device key.
   g_wifi.begin(g_storage);
 
@@ -102,7 +126,10 @@ extern "C" void app_main(void) {
     }
     // A loss whose WsClosed event was dropped; harmless if it was delivered too.
     if (g_transport.take_lost()) app.on_transport_closed("disconnected");
+    g_buttons.poll(app);
     g_wifi.tick(g_system.now_ms());
     app.tick();
+    log_screen_change(app.model());
+    g_ring.show(nabu::ring_frame(app.model().screen, g_system.now_ms()));
   }
 }

@@ -80,6 +80,7 @@ You can always reflash the device, including back to the stock firmware:
 | `CMakeLists.txt`         | ESP-IDF project definition                     |
 | `main/main.cpp`          | Entry point: wires drivers to `hg::App`        |
 | `main/port*`             | ESP32 HAL drivers (Wi-Fi, WebSocket, NVS, …)   |
+| `main/led_*`             | LED ring driver and per-state patterns         |
 | `main/idf_component.yml` | Component dependencies, Gadget core pin        |
 | `dependencies.lock`      | Resolved component versions                    |
 | `sdkconfig.defaults`     | Board settings (target, flash, PSRAM, console) |
@@ -117,8 +118,8 @@ Each step gets flashed and tested on the device before moving on.
 - [x] Minimal app that logs over serial
 - [x] Gadget core integrated, Wi-Fi and WebSocket transport ported
 - [x] On device: join Wi-Fi, connect to Hermes (`ws://` and `wss://`), pair
-- [ ] Push-to-talk on the center button, status on the LED ring
-- [ ] Mic capture, stream as PCM16 chunks
+- [x] Status on the LED ring, center button wired to Talk
+- [ ] Mic capture, stream as PCM16 chunks (push-to-talk on the center button)
 - [ ] Speaker playback
 - [ ] XMOS initialization for better audio quality
 - [ ] OTA with a two-slot partition table and rollback

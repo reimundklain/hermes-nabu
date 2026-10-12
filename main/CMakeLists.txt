@@ -1,6 +1,9 @@
 idf_component_register(
     SRCS
+        "led_patterns.cpp"
+        "led_ring.cpp"
         "main.cpp"
+        "port_buttons.cpp"
         "port_console.cpp"
         "port_events.cpp"
         "port_storage.cpp"
@@ -12,6 +15,7 @@ idf_component_register(
     PRIV_REQUIRES
         console
         esp_app_format
+        esp_driver_gpio
         esp_event
         esp_netif
         esp_pm
@@ -20,4 +24,5 @@ idf_component_register(
         mbedtls
         nvs_flash
         esp_websocket_client
+        led_strip
 )
