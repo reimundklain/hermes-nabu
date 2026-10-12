@@ -87,7 +87,8 @@ You can always reflash the device, including back to the stock firmware:
 | `main/idf_component.yml` | Component dependencies, Gadget core pin        |
 | `dependencies.lock`      | Resolved component versions                    |
 | `sdkconfig.defaults`     | Board settings (target, flash, PSRAM, console) |
-| `NOTICE`                 | Provenance and license of code from the SDK    |
+| `LICENSE`                | MIT license of this project                    |
+| `NOTICE`                 | Third-party code, upstream credits, trademarks |
 
 `sdkconfig` is generated from `sdkconfig.defaults` during the build and is
 not tracked. Put persistent configuration changes into `sdkconfig.defaults`.
@@ -133,3 +134,9 @@ Each step gets flashed and tested on the device before moving on.
 
 The gadget protocol (JSON control frames and binary audio frames over a
 WebSocket) is documented in `docs/protocol.md` of the Hermes Gadget SDK.
+
+## License
+
+MIT, see `LICENSE`. Code taken from the Hermes Gadget SDK keeps its MIT
+license; `NOTICE` lists those files and credits the upstream projects the
+hardware details come from.

@@ -24,8 +24,22 @@ Copied from firmware/esp32/main/ and modified:
 The core (firmware/core) is not copied; the ESP-IDF component manager
 fetches it at the commit pinned in main/idf_component.yml.
 
+The board drivers are written for this project. The hardware facts they rely
+on come from ESPHome ("esphome", https://github.com/esphome/esphome) and the
+stock Voice PE firmware ("voice-pe",
+https://github.com/esphome/home-assistant-voice-pe):
+  pin mapping                    voice-pe: home-assistant-voice.yaml
+  LED colors and animations      voice-pe: home-assistant-voice.yaml
+  AIC3204 DAC init sequence      esphome: esphome/components/aic3204
+  XMOS pipeline-stage protocol   voice-pe: esphome/components/voice_kit
+No code from either project is copied.
+
 "Hermes" and "Hermes Agent" are trademarks of Nous Research, used here only
 to describe compatibility. This project is not affiliated with Nous Research.
+
+"Home Assistant" is a trademark of the Open Home Foundation, used here only
+to describe the supported hardware. This project is not affiliated with the
+Open Home Foundation or Nabu Casa.
 
 The Hermes Gadget SDK is licensed as follows:
 
