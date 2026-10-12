@@ -31,7 +31,7 @@ namespace hgp {
 // ---------------------------------------------------------------------------
 // Events
 
-enum class EventType : uint8_t { NetUp, NetDown, WsOpen, WsText, WsBinary, WsClosed, Console, WifiStarted,
+enum class EventType : uint8_t { NetUp, NetDown, WsOpen, WsText, WsBinary, WsClosed, Mic, Console, WifiStarted,
                                  WifiDisconnected };
 
 // Wakes a console command when the app task has answered it.

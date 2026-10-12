@@ -10,11 +10,15 @@ idf_component_register(
         "port_system.cpp"
         "port_wifi.cpp"
         "port_ws.cpp"
+        "xmos_control.cpp"
+        "xmos_mic.cpp"
     INCLUDE_DIRS "."
     REQUIRES hermes_gadget_core
     PRIV_REQUIRES
         console
         esp_app_format
+        esp_driver_i2c
+        esp_driver_i2s
         esp_driver_gpio
         esp_event
         esp_netif
