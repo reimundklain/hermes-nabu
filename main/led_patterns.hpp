@@ -27,4 +27,8 @@ using RingFrame = std::array<Rgb, kRingSize>;
 
 RingFrame ring_frame(hg::Screen screen, uint32_t now_ms);
 
+// Two red LEDs beside the microphones over whatever the ring shows, as on the
+// stock firmware.
+void mark_muted(RingFrame& frame);
+
 }  // namespace nabu

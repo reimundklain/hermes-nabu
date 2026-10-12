@@ -3,6 +3,7 @@ https://github.com/Adolanium/hermes-gadget-sdk (commit 66b4af0f)
 
 Copied from firmware/drivers/ unchanged:
   main/shared_reply.hpp
+  main/speaker_queue.hpp
   main/wifi_retry.hpp
   main/ws_link.hpp
 

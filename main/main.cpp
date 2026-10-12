@@ -8,10 +8,14 @@
 #include "esp_app_desc.h"
 #include "esp_log.h"
 #include "led_ring.hpp"
+#include "mute_switch.hpp"
+#include "aic3204.hpp"
 #include "nvs_flash.h"
 #include "sdkconfig.h"
+#include "turn_log.hpp"
 #include "xmos_control.hpp"
 #include "xmos_mic.hpp"
+#include "xmos_speaker.hpp"
 
 namespace {
 
@@ -31,8 +35,11 @@ hgp::WsTransport g_transport;
 hgp::Wifi g_wifi;
 hgp::Buttons g_buttons;
 nabu::LedRing g_ring;
+nabu::MuteSwitch g_mute;
 nabu::XmosControl g_xmos;
 nabu::XmosMic g_mic;
+nabu::Aic3204 g_dac;
+nabu::XmosSpeaker g_speaker;
 hg::Screen g_logged_screen = hg::Screen::Boot;
 std::string g_logged_hint;
 
@@ -56,7 +63,7 @@ void log_hint_change(const hg::UiModel& model) {
   if (!model.hint.empty()) ESP_LOGI(TAG, "hint: %s", model.hint.c_str());
 }
 
-// The bus to the XMOS (and later the speaker DAC).
+// The bus to the XMOS and the DAC.
 i2c_master_bus_handle_t init_internal_i2c() {
   i2c_master_bus_config_t cfg = {};
   cfg.i2c_port = I2C_NUM_0;
@@ -71,11 +78,37 @@ i2c_master_bus_handle_t init_internal_i2c() {
   return bus;
 }
 
-// The XMOS boots while Wi-Fi starts; configure() waits for whatever is left.
-bool init_microphone() {
+// The XMOS boots while Wi-Fi starts; configure() waits for what is left.
+// The DAC is set up only after that, in case the XMOS touches it while booting.
+void init_audio(hg::Hal& hal) {
   i2c_master_bus_handle_t bus = init_internal_i2c();
-  if (!bus || g_xmos.configure(bus) != ESP_OK) return false;
-  return g_mic.begin();
+  if (!bus) {
+    ESP_LOGW(TAG, "running without audio");
+    return;
+  }
+  const bool xmos_ready = g_xmos.configure(bus) == ESP_OK;
+  const bool dac_started = g_dac.begin(bus) == ESP_OK;
+  if (xmos_ready && g_mic.begin()) hal.mic = &g_mic;
+  else ESP_LOGW(TAG, "running without the microphone");
+  if (dac_started && g_dac.power_up() == ESP_OK && g_speaker.begin(g_dac)) hal.speaker = &g_speaker;
+  else ESP_LOGW(TAG, "running without the speaker");
+}
+
+// Muting mid-utterance discards it; a reply already under way keeps playing.
+void on_mute_changed(hg::App& app) {
+  const bool muted = g_mute.muted();
+  g_mic.set_muted(muted);
+  ESP_LOGI(TAG, "microphone %s", muted ? "muted" : "unmuted");
+  if (muted && app.model().screen == hg::Screen::Listening) {
+    app.on_button(hg::Button::Cancel, true);
+    app.on_button(hg::Button::Cancel, false);
+  }
+}
+
+nabu::RingFrame ring_now(const hg::UiModel& model) {
+  nabu::RingFrame frame = nabu::ring_frame(model.screen, g_system.now_ms());
+  if (g_mute.muted()) nabu::mark_muted(frame);
+  return frame;
 }
 
 void init_nvs() {
@@ -109,7 +142,10 @@ void dispatch(hg::App& app, hgp::Event& ev) {
       break;
     case EventType::WifiStarted: g_wifi.reconfigure(); break;
     case EventType::WsOpen: app.on_transport_open(); break;
-    case EventType::WsText: app.on_transport_text(std::string_view(text, ev.len)); break;
+    case EventType::WsText:
+      nabu::log_turn_message(std::string_view(text, ev.len));
+      app.on_transport_text(std::string_view(text, ev.len));
+      break;
     case EventType::WsBinary: app.on_transport_binary(ev.data, ev.len); break;
     case EventType::WsClosed: app.on_transport_closed(text ? text : "closed"); break;
     case EventType::Mic:
@@ -134,6 +170,9 @@ extern "C" void app_main(void) {
   if (!g_ring.begin()) ESP_LOGW(TAG, "running without the LED ring");
   g_ring.show(nabu::ring_frame(hg::Screen::Boot, g_system.now_ms()));
 
+  g_mute.begin();
+  g_mic.set_muted(g_mute.muted());
+
   hgp::ButtonConfig buttons;
   buttons.talk = kCenterButtonGpio;
   g_buttons.begin(buttons);
@@ -145,8 +184,7 @@ extern "C" void app_main(void) {
   hal.system = &g_system;
   hal.transport = &g_transport;
   hal.storage = &g_storage;
-  if (init_microphone()) hal.mic = &g_mic;
-  else ESP_LOGW(TAG, "running without the microphone");
+  init_audio(hal);
 
   hg::DeviceProfile profile;
   profile.board = kBoardName;
@@ -157,6 +195,7 @@ extern "C" void app_main(void) {
   profile.has_cancel_button = false;
   profile.has_scroll_buttons = false;
   profile.mic_rate = nabu::XmosMic::kRate;
+  profile.speaker_rate = nabu::XmosSpeaker::kRate;
 
   static hg::App app(hal, profile);
   app.on_setting_changed = [](std::string_view key) {
@@ -175,11 +214,12 @@ extern "C" void app_main(void) {
     }
     // A loss whose WsClosed event was dropped; harmless if it was delivered too.
     if (g_transport.take_lost()) app.on_transport_closed("disconnected");
+    if (g_mute.poll()) on_mute_changed(app);
     g_buttons.poll(app);
     g_wifi.tick(g_system.now_ms());
     app.tick();
     log_screen_change(app.model());
     log_hint_change(app.model());
-    g_ring.show(nabu::ring_frame(app.model().screen, g_system.now_ms()));
+    g_ring.show(ring_now(app.model()));
   }
 }

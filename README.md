@@ -81,7 +81,9 @@ You can always reflash the device, including back to the stock firmware:
 | `main/main.cpp`          | Entry point: wires drivers to `hg::App`        |
 | `main/port*`             | ESP32 HAL drivers (Wi-Fi, WebSocket, NVS, …)   |
 | `main/led_*`             | LED ring driver and per-state patterns         |
-| `main/xmos_*`            | XMOS reset/configuration and processed mic in  |
+| `main/xmos_*`            | XMOS control, mic in and speaker out over I2S  |
+| `main/aic3204.*`         | Speaker DAC setup and volume                   |
+| `main/mute_switch.*`     | Hardware mute switch                           |
 | `main/idf_component.yml` | Component dependencies, Gadget core pin        |
 | `dependencies.lock`      | Resolved component versions                    |
 | `sdkconfig.defaults`     | Board settings (target, flash, PSRAM, console) |
@@ -121,8 +123,9 @@ Each step gets flashed and tested on the device before moving on.
 - [x] On device: join Wi-Fi, connect to Hermes (`ws://` and `wss://`), pair
 - [x] Status on the LED ring, center button wired to Talk
 - [x] Mic capture through the XMOS, push-to-talk on the center button
-- [ ] Speaker playback
-- [ ] XMOS initialization for better audio quality
+- [x] Speaker playback through the XMOS and the AIC3204 DAC
+- [x] XMOS initialization (echo cancellation, noise suppression, gain control)
+- [ ] Hardware mute switch: no capture while muted, red marks on the ring
 - [ ] OTA with a two-slot partition table and rollback
 
 The gadget protocol (JSON control frames and binary audio frames over a

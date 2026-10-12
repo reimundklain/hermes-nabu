@@ -20,6 +20,8 @@ class XmosMic final : public hg::AudioIn {
   bool begin();
   bool start(uint32_t sample_rate) override;
   void stop() override;
+  // While muted no samples leave the driver and start() refuses.
+  void set_muted(bool muted) { muted_ = muted; }
 
  private:
   static constexpr size_t kChunkFrames = 320;  // 20 ms
@@ -29,6 +31,7 @@ class XmosMic final : public hg::AudioIn {
   void capture_chunk();
   i2s_chan_handle_t rx_ = nullptr;
   std::atomic<bool> capturing_{false};
+  std::atomic<bool> muted_{true};  // until the switch has been read
   // Per capture, for the log line on stop(): shows whether the XMOS sends.
   std::atomic<uint32_t> captured_frames_{0};
   std::atomic<uint32_t> failed_reads_{0};

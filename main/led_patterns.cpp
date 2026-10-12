@@ -74,7 +74,18 @@ RingFrame thinking(Rgb color, uint32_t now_ms) {
   return frame;
 }
 
+// Logical positions beside the two microphones, with a dark gap on each side.
+constexpr size_t kMicMarks[] = {3, 9};
+
 }  // namespace
+
+void mark_muted(RingFrame& frame) {
+  for (size_t mark : kMicMarks) {
+    frame[mark - 1] = Rgb{};
+    frame[mark] = kRed;
+    frame[mark + 1] = Rgb{};
+  }
+}
 
 RingFrame ring_frame(hg::Screen screen, uint32_t now_ms) {
   switch (screen) {

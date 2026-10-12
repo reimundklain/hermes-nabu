@@ -1,8 +1,10 @@
 idf_component_register(
     SRCS
+        "aic3204.cpp"
         "led_patterns.cpp"
         "led_ring.cpp"
         "main.cpp"
+        "mute_switch.cpp"
         "port_buttons.cpp"
         "port_console.cpp"
         "port_events.cpp"
@@ -10,8 +12,10 @@ idf_component_register(
         "port_system.cpp"
         "port_wifi.cpp"
         "port_ws.cpp"
+        "turn_log.cpp"
         "xmos_control.cpp"
         "xmos_mic.cpp"
+        "xmos_speaker.cpp"
     INCLUDE_DIRS "."
     REQUIRES hermes_gadget_core
     PRIV_REQUIRES

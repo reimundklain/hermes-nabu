@@ -59,6 +59,10 @@ bool XmosMic::begin() {
 
 bool XmosMic::start(uint32_t sample_rate) {
   if (!rx_) return false;
+  if (muted_) {
+    ESP_LOGI(TAG, "muted by the switch; not capturing");
+    return false;
+  }
   // The XMOS sets the clock; it can't follow another rate.
   if (sample_rate != kRate) {
     ESP_LOGE(TAG, "asked for %u Hz, the XMOS sends %u Hz", static_cast<unsigned>(sample_rate),
@@ -111,7 +115,7 @@ void XmosMic::capture_chunk() {
   }
   peak_ = peak;
   captured_frames_ += frames;
-  if (capturing_) hgp::events::post(hgp::EventType::Mic, pcm_, frames * sizeof(int16_t));
+  if (capturing_ && !muted_) hgp::events::post(hgp::EventType::Mic, pcm_, frames * sizeof(int16_t));
 }
 
 }  // namespace nabu
