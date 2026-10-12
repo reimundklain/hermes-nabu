@@ -6,6 +6,7 @@
 #include <string_view>
 
 #include "driver/i2c_master.h"
+#include "driver/usb_serial_jtag.h"
 #include "esp_app_desc.h"
 #include "esp_log.h"
 #include "led_ring.hpp"
@@ -212,7 +213,14 @@ extern "C" void app_main(void) {
     if (key == kWifiSsidKey || key == kWifiPassKey) g_wifi.reconfigure();
   };
   app.begin();
-  hgp::console::begin();
+  // Without a USB host, the console's reads fail at once and its REPL task
+  // spins above this task's priority, so the main loop would never run. USB-C
+  // is the only power input, so plugging in a host restarts the device anyway.
+  if (usb_serial_jtag_is_connected()) {
+    hgp::console::begin();
+  } else {
+    ESP_LOGI(TAG, "no USB host, serial console off");
+  }
 
   for (;;) {
     hgp::Event ev;
