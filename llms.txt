@@ -1,0 +1,215 @@
+# hermes-nabu
+
+> Unofficial thin-client firmware that turns the Home Assistant Voice Preview
+> Edition (ESP32-S3) into a push-to-talk satellite for Hermes Agent. This file
+> tells an AI coding agent (Claude Code or similar) how to set up the Hermes
+> host, build and flash the firmware, and configure the device over USB.
+
+Work through the steps in order. Each step names the check that proves it
+worked; do not move on until that check passes. Steps marked HUMAN need the
+user's hands or secrets: stop, explain what to do, and wait.
+
+## Ground rules
+
+- Ask before flashing. Flashing overwrites the stock firmware; the user can
+  restore it later with the official web installer (see Recovery).
+- Never write Wi-Fi passwords, Hermes tokens or API keys into files, commits,
+  `sdkconfig.defaults` or menuconfig. Settings live in the device's NVS only.
+- Only one process can own the serial port. Before flashing or sending console
+  commands, check that no `idf.py monitor` holds it
+  (`fuser -v /dev/ttyACM0`). If one does, ask the user to quit it with
+  `Ctrl+]`; do not kill it.
+- `idf.py monitor` is interactive and needs a TTY. Use it only by asking the
+  user to run it; drive the console yourself with the helper in step 5.
+- Run every build or flash command inside the dev shell: `nix develop
+  --command <cmd>` (or rely on direnv if it is already active).
+
+## 1. Check prerequisites
+
+- Nix with flakes. `nix develop --command idf.py --version` prints ESP-IDF
+  v5.5.2.
+- Hermes Agent installed on a host (this machine or another) with
+  `hermes --version` working there.
+- Voice PE connected over USB-C with a data cable. Linux shows it as
+  `/dev/ttyACM*`; `ls /dev/serial/by-id/` lists an
+  `Espressif_USB_JTAG_serial_debug_unit` entry.
+- The device and the Hermes host share a network the device can reach on
+  2.4 GHz Wi-Fi.
+
+## 2. Set up Hermes on the host
+
+Run on the computer where Hermes runs. If that is not this machine, give the
+user the commands instead of running them.
+
+1. Install the Gadget plugin pinned to the same SDK commit as the firmware.
+   Read the commit from `main/idf_component.yml`
+   (`hermes_gadget_core.version`), then:
+
+   ```sh
+   hermes plugins install https://github.com/Adolanium/hermes-gadget-sdk.git#plugin --ref <commit> --enable
+   hermes gateway setup        # choose "Hermes Gadget", accept the restart
+   ```
+
+2. Get the device URL:
+
+   ```sh
+   hermes gadget info
+   ```
+
+   Check: it prints a URL like `ws://<host>:8765/gadget`. If it shows
+   `127.0.0.1` or `localhost`, use the host's LAN IP or hostname instead; the
+   device cannot reach the host's loopback.
+
+3. Make sure the gateway keeps running (`hermes gateway restart` for the
+   service, or `hermes gateway run` in a terminal) and that the host firewall
+   allows the gadget port (8765 by default).
+
+4. Speech: the device sends raw audio, Hermes does STT and TTS. Check that
+   `stt:` and `tts:` are configured in `~/.hermes/config.yaml` (or run
+   `hermes tools` / `hermes setup`). Non-WAV TTS output needs `ffmpeg` on the
+   host.
+
+Optional settings live under `platforms.gadget.extra` in
+`~/.hermes/config.yaml` (`port`, `path`, `speak_replies`, `tls_cert`,
+`tls_key`). Port, path or TLS changes need a gateway restart. An optional
+shared secret goes in `~/.hermes/.env` as `GADGET_ACCESS_TOKEN`; the device
+then needs the same value in its `token` setting.
+
+## 3. Build
+
+```sh
+nix develop --command idf.py build
+```
+
+Check: the build ends with `Project build complete` and writes
+`build/hermes-nabu.bin`. The first build downloads the pinned components into
+`managed_components/`; never edit files there.
+
+## 4. Flash (ask first)
+
+Confirm with the user, then:
+
+```sh
+nix develop --command idf.py -p /dev/ttyACM0 flash
+```
+
+Check: esptool ends with `Hard resetting via RTS pin...` and no error.
+
+HUMAN, only if esptool cannot connect (`Failed to connect`, `No serial data
+received`): ask the user to put the device in bootloader mode and retry:
+
+1. Unplug USB-C.
+2. Hold the center button.
+3. Plug USB-C back in.
+4. Release the button after a moment.
+
+The port name can change after re-plugging; re-check `/dev/ttyACM*`. After a
+flash from bootloader mode, ask the user to unplug and replug once so the new
+firmware boots normally.
+
+## 5. Configure the device over serial
+
+The firmware opens its console (`gadget>` prompt) only when a USB host is
+attached at boot. Every command answers with one line that starts with `@`:
+`@ok`, `@error`, `@status {json}`, `@value {json}`, `@help`. Log lines
+interleave, so read until the `@` line.
+
+Send one command at a time with this helper. Opening the port with DTR and RTS
+low keeps the ESP32-S3 from resetting.
+
+```sh
+nix develop --command python - /dev/ttyACM0 status <<'EOF'
+import sys, time, serial
+REPLY_TIMEOUT_S = 5
+port, line = sys.argv[1], " ".join(sys.argv[2:])
+link = serial.Serial()
+link.port, link.baudrate, link.timeout = port, 115200, 0.5
+link.dtr = link.rts = False
+link.open()
+link.reset_input_buffer()
+link.write((line + "\r\n").encode())
+deadline = time.time() + REPLY_TIMEOUT_S
+while time.time() < deadline:
+    text = link.readline().decode(errors="replace").strip()
+    if "@" in text:
+        print(text[text.index("@"):])
+        break
+else:
+    sys.exit(f"no reply to '{line}' from {port}")
+EOF
+```
+
+Replace `status` with the command to send. Configure in this order:
+
+1. `set server <url from hermes gadget info>` → `@ok server`
+2. `set wifi_ssid <ssid>` → `@ok wifi_ssid`
+3. HUMAN: the Wi-Fi password. Ask the user to set it themselves so it never
+   passes through your context: they run
+   `nix develop --command idf.py -p /dev/ttyACM0 monitor`, type
+   `set wifi_pass <password>` at the `gadget>` prompt, and quit with `Ctrl+]`.
+   Then check with `get wifi_pass` → `@value {"key":"wifi_pass","value":"<set>"}`.
+4. Optional: `set name <name>`, `set volume <0-100>`, `set token <value>` (only
+   if `GADGET_ACCESS_TOKEN` is set on the host; same HUMAN rule as the
+   password).
+5. `status` → check `"network":true` and `"phase":"online"` (it passes
+   through `no_network`, `connecting` and `handshake` first; an `error` field
+   names a fatal problem such as a rejected token).
+
+`help` lists all commands and keys. Settings keys: `name server token
+talk_mode volume wifi_ssid wifi_pass` (`brightness`, `screen_timeout` and
+`battery_display` exist in the core but do nothing on this board). Setting a
+key to an empty value clears it.
+
+## 6. Pair with Hermes
+
+When the device reaches Hermes for the first time, `status` contains a
+`pairing_code`, and the serial log shows
+`state: pairing, code <CODE> (approve: hermes pairing approve gadget <CODE>)`.
+
+On the Hermes host:
+
+```sh
+hermes gadget pair                         # asks before approving
+# or: hermes pairing approve gadget <CODE>
+```
+
+Check: `status` shows `"paired":true`, and `hermes gadget devices` lists the
+device without "waiting to pair".
+
+## 7. End-to-end test (HUMAN)
+
+Ask the user to hold the center button, speak, and release. Check: the LED
+ring moves through listening → thinking → speaking and the reply plays on the
+speaker. The hardware mute switch blocks capture and shows red marks on the
+ring; it must be off for this test.
+
+## Troubleshooting
+
+- `"phase"` stays `connecting`: wrong `server` URL, gateway not running, firewall, or a
+  loopback address. Re-check step 2, then send `reconnect`.
+- `diag` prints connection details as JSON. Its `net` object shows the joined
+  access point (`ssid`, `rssi`, `channel`), `mac`, `ip`, `mask`, `gw` and the
+  `dns` servers DHCP handed out. Check these first when a hostname fails to
+  resolve (`getaddrinfo() returns 202` in the log).
+- `@error device busy`: the app task did not answer within 3 s; retry.
+- No `gadget>` reply at all: the device booted without a USB host. Replug
+  USB-C, or reset it with `nix develop --command esptool.py -p /dev/ttyACM0
+  run`.
+- Start over: `factory-reset` erases the device key and all settings, then
+  replug. The device needs pairing again; remove the old entry with
+  `hermes gadget forget <device>` on the host.
+
+## Recovery
+
+Bootloader mode (step 4) always works, so the device cannot be bricked by a
+bad build. Restore the stock Home Assistant firmware with the official web
+installer in Chrome or Edge: https://esphome.github.io/home-assistant-voice-pe/
+
+## Docs
+
+- [README](README.md): build commands, project layout, pin mapping, roadmap
+- [AGENTS.md](AGENTS.md): code conventions and rules for changing the firmware
+- [Hermes Gadget SDK](https://github.com/Adolanium/hermes-gadget-sdk): shared core and Hermes plugin
+- [Connect Hermes](https://github.com/Adolanium/hermes-gadget-sdk/blob/main/docs/connect-hermes.md): plugin install, pairing, speech
+- [Hermes integration](https://github.com/Adolanium/hermes-gadget-sdk/blob/main/docs/hermes-integration.md): plugin configuration reference
+- [Gadget protocol](https://github.com/Adolanium/hermes-gadget-sdk/blob/main/docs/protocol.md): wire protocol v1
