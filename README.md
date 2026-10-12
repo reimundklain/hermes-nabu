@@ -55,15 +55,18 @@ Nothing needs to be installed globally.
 
 ```sh
 direnv allow        # or: nix develop
-idf.py build
-idf.py -p /dev/ttyACM0 flash monitor
+make
+make flash monitor  # or: make flash monitor PORT=/dev/ttyACM0
 ```
+
+The `Makefile` wraps `idf.py`; `make help` lists the targets (`menuconfig`,
+`size`, `merge-bin`, `erase`, `clean`, …). Plain `idf.py` works as well.
 
 The first build downloads the pinned components (Gadget core,
 `esp_websocket_client`) into `managed_components/`.
 
 The console runs over the USB-C port (USB Serial/JTAG), so the device shows
-up as `/dev/ttyACM*`. Leave `idf.py monitor` with `Ctrl+]`.
+up as `/dev/ttyACM*`. Leave the monitor with `Ctrl+]`.
 
 ## Configuration
 
@@ -104,6 +107,7 @@ You can always reflash the device, including back to the stock firmware:
 | ------------------------ | ---------------------------------------------- |
 | `flake.nix`              | Dev shell (ESP-IDF, toolchain, formatter)      |
 | `CMakeLists.txt`         | ESP-IDF project definition                     |
+| `Makefile`               | Shortcuts for `idf.py` (`make help`)           |
 | `main/main.cpp`          | Entry point: wires drivers to `hg::App`        |
 | `main/port*`             | ESP32 HAL drivers (Wi-Fi, WebSocket, NVS, …)   |
 | `main/led_*`             | LED ring driver and per-state patterns         |
