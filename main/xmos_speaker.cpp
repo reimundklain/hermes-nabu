@@ -28,13 +28,23 @@ constexpr size_t kBufferBytes = XmosSpeaker::kRate * kBufferMs / kMsPerSecond * 
 constexpr size_t kStreamBufferSpare = 1;
 // Wake the playback task as soon as any audio arrives.
 constexpr size_t kTriggerLevelBytes = 1;
+// Playback starts, and after running dry starts again, only with this much
+// queued: a reserve against Wi-Fi delays. Below the server's 0.5 s lead, so it
+// adds no latency while the server keeps up.
+constexpr uint32_t kPrebufferMs = 250;
+constexpr size_t kPrebufferBytes = XmosSpeaker::kRate * kPrebufferMs / kMsPerSecond * sizeof(int16_t);
+static_assert(kPrebufferBytes < kBufferBytes, "the prebuffer must fit in the playback buffer");
 
 constexpr const char* kTaskName = "nabu-spk";
 constexpr uint32_t kTaskStack = 4096;
 constexpr UBaseType_t kTaskPriority = 7;
 constexpr TickType_t kReceiveWait = pdMS_TO_TICKS(20);
+constexpr TickType_t kPrebufferPoll = pdMS_TO_TICKS(10);
 // i2s_channel_write() takes milliseconds, not ticks.
 constexpr uint32_t kWriteTimeoutMs = 200;
+// Longer than one receive wait plus one I2S write, the most the playback task
+// blocks before it looks for a flush request again.
+constexpr TickType_t kFlushWait = pdMS_TO_TICKS(2 * kWriteTimeoutMs);
 
 // PCM16 into the top half of a 32-bit slot.
 constexpr int32_t kSampleScale = 1 << 16;
@@ -72,6 +82,11 @@ bool XmosSpeaker::begin(Aic3204& dac) {
     ESP_LOGE(TAG, "no memory for the %u byte playback buffer", static_cast<unsigned>(kBufferBytes));
     return false;
   }
+  flushed_ = xSemaphoreCreateBinary();
+  if (!flushed_) {
+    ESP_LOGE(TAG, "no memory for the flush semaphore");
+    return false;
+  }
   if (xTaskCreate(&XmosSpeaker::task, kTaskName, kTaskStack, this, kTaskPriority, nullptr) != pdPASS) {
     ESP_LOGE(TAG, "can't start the playback task");
     return false;
@@ -96,8 +111,14 @@ bool XmosSpeaker::begin(uint32_t sample_rate) {
              static_cast<unsigned>(kRate));
     return false;
   }
+  // A flush still pending once frames arrive would take them with the old stream.
   abort();
+  if (!wait_for_flush()) {
+    ESP_LOGE(TAG, "the playback task did not flush the old stream in time");
+    return false;
+  }
   played_frames_ = 0;
+  underruns_ = 0;
   failed_writes_ = 0;
   peak_ = 0;
   open_ = true;
@@ -124,7 +145,16 @@ void XmosSpeaker::end() {
 void XmosSpeaker::abort() {
   open_ = false;
   draining_ = false;
-  flush_ = true;
+  ++flush_requests_;
+}
+
+// A stale give from an earlier flush only costs one more round.
+bool XmosSpeaker::wait_for_flush() {
+  const uint32_t request = flush_requests_;
+  while (flushes_done_ != request) {
+    if (xSemaphoreTake(flushed_, kFlushWait) != pdTRUE) return false;
+  }
+  return true;
 }
 
 bool XmosSpeaker::busy() const {
@@ -140,18 +170,41 @@ void XmosSpeaker::task(void* arg) {
   for (;;) self->play_chunk();
 }
 
+// The stream buffer refuses a reset while a task waits on it; this task is the
+// only receiver and the app task never waits to send.
+void XmosSpeaker::flush_if_requested() {
+  const uint32_t requested = flush_requests_;
+  if (requested == flushes_done_) return;
+  if (xStreamBufferReset(buffer_) != pdPASS) ESP_LOGE(TAG, "playback buffer reset refused");
+  playing_ = false;
+  flushes_done_ = requested;
+  xSemaphoreGive(flushed_);
+}
+
+// A stream that has ended plays out whatever is left.
+bool XmosSpeaker::prebuffered() const {
+  return !open_ || xStreamBufferBytesAvailable(buffer_) >= kPrebufferBytes;
+}
+
 void XmosSpeaker::play_chunk() {
-  if (flush_.exchange(false)) xStreamBufferReset(buffer_);
+  flush_if_requested();
+  if (!playing_ && !prebuffered()) {
+    vTaskDelay(kPrebufferPoll);
+    return;
+  }
   const size_t got = xStreamBufferReceive(buffer_, mono_, sizeof(mono_), kReceiveWait);
   if (got == 0) {
+    if (playing_ && open_) ++underruns_;  // ran dry mid-stream: prebuffer again
+    playing_ = false;
     if (draining_ && !open_) {
       draining_ = false;  // everything queued has gone out
-      ESP_LOGI(TAG, "played %u ms, peak %d, failed writes %u",
+      ESP_LOGI(TAG, "played %u ms, peak %d, underruns %u, failed writes %u",
                static_cast<unsigned>(played_frames_ * kMsPerSecond / kRate), static_cast<int>(peak_),
-               static_cast<unsigned>(failed_writes_));
+               static_cast<unsigned>(underruns_), static_cast<unsigned>(failed_writes_));
     }
     return;
   }
+  playing_ = true;
   const size_t frames = got / sizeof(int16_t);
   int32_t peak = peak_;
   for (size_t i = 0; i < frames; ++i) {

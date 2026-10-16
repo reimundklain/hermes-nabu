@@ -11,6 +11,7 @@
 
 #include "aic3204.hpp"
 #include "driver/i2s_std.h"
+#include "freertos/semphr.h"
 #include "freertos/stream_buffer.h"
 
 namespace nabu {
@@ -35,15 +36,26 @@ class XmosSpeaker final : public hg::AudioOut {
 
   static void task(void* arg);
   void play_chunk();
+  void flush_if_requested();
+  bool wait_for_flush();
+  bool prebuffered() const;
   Aic3204* dac_ = nullptr;
   i2s_chan_handle_t tx_ = nullptr;
   StreamBufferHandle_t buffer_ = nullptr;
   std::atomic<bool> open_{false};
   std::atomic<bool> draining_{false};
-  std::atomic<bool> flush_{false};
+  // Only the playback task resets the buffer: abort() asks for a flush, and the
+  // task counts it done and gives `flushed_`.
+  std::atomic<uint32_t> flush_requests_{0};
+  std::atomic<uint32_t> flushes_done_{0};
+  SemaphoreHandle_t flushed_ = nullptr;
+  // Playback task only: false until a stream has prebuffered, and again after
+  // the buffer ran dry.
+  bool playing_ = false;
   // Per stream, for the log line once it has played out: shows whether audio
   // arrives from Hermes and leaves for the XMOS.
   std::atomic<uint32_t> played_frames_{0};
+  std::atomic<uint32_t> underruns_{0};
   std::atomic<uint32_t> failed_writes_{0};
   std::atomic<int32_t> peak_{0};
   int16_t mono_[kChunkFrames] = {};
