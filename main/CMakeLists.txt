@@ -1,6 +1,7 @@
 idf_component_register(
     SRCS
         "aic3204.cpp"
+        "dial.cpp"
         "led_patterns.cpp"
         "led_ring.cpp"
         "main.cpp"
@@ -25,6 +26,7 @@ idf_component_register(
         esp_driver_i2c
         esp_driver_i2s
         esp_driver_gpio
+        esp_driver_pcnt
         esp_driver_usb_serial_jtag
         esp_event
         esp_netif

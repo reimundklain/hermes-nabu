@@ -162,7 +162,8 @@ bool XmosSpeaker::busy() const {
 }
 
 void XmosSpeaker::set_volume(uint8_t percent) {
-  if (dac_ && dac_->set_volume(percent) != ESP_OK) ESP_LOGW(TAG, "volume %u%% not applied", percent);
+  const uint8_t capped = std::min(percent, kMaxVolume);
+  if (dac_ && dac_->set_volume(capped) != ESP_OK) ESP_LOGW(TAG, "volume %u%% not applied", capped);
 }
 
 void XmosSpeaker::task(void* arg) {

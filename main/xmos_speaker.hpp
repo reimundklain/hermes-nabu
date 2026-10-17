@@ -19,6 +19,8 @@ namespace nabu {
 class XmosSpeaker final : public hg::AudioOut {
  public:
   static constexpr uint32_t kRate = 48000;
+  // The loudest level it plays, in percent; louder requests play at this one.
+  static constexpr uint8_t kMaxVolume = 80;
 
   // Starts the always-running I2S output and turns the amplifier on. The DAC
   // must be powered up already.

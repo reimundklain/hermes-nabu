@@ -79,6 +79,10 @@ RingFrame thinking(Rgb color, uint32_t now_ms) {
 // Logical positions beside the two microphones, with a dark gap on each side.
 constexpr size_t kMicMarks[] = {3, 9};
 
+// Where the stock firmware starts its volume arc (LED 6 of the chain).
+constexpr size_t kVolumeArcStart = 11;
+constexpr uint32_t kPercentMax = 100;
+
 }  // namespace
 
 void mark_muted(RingFrame& frame) {
@@ -87,6 +91,23 @@ void mark_muted(RingFrame& frame) {
     frame[mark] = kRed;
     frame[mark + 1] = Rgb{};
   }
+}
+
+RingFrame volume_arc(uint8_t percent) {
+  RingFrame frame{};
+  if (percent == 0) {
+    frame[kVolumeArcStart] = kRed;
+    return frame;
+  }
+  const uint32_t clamped = percent > kPercentMax ? kPercentMax : percent;
+  // The arc's length in steps of 1/255 LED.
+  const uint32_t length = kRingSize * kFull * clamped / kPercentMax;
+  for (size_t i = 0; i < kRingSize && length > i * kFull; ++i) {
+    const uint32_t rest = length - i * kFull;
+    const auto level = static_cast<uint8_t>(rest < kFull ? rest : kFull);
+    frame[(kVolumeArcStart + i) % kRingSize] = scaled(kAccent, level);
+  }
+  return frame;
 }
 
 RingFrame ring_frame(hg::Screen screen, uint32_t now_ms) {

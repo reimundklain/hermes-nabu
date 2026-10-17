@@ -31,4 +31,8 @@ RingFrame ring_frame(hg::Screen screen, uint32_t now_ms);
 // stock firmware.
 void mark_muted(RingFrame& frame);
 
+// The speaker volume (0..100) as a clockwise arc, its last LED dimmed by the
+// remainder. A single red LED at 0.
+RingFrame volume_arc(uint8_t percent);
+
 }  // namespace nabu

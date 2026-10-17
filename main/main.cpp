@@ -2,9 +2,13 @@
 // core (hg::App) and runs the app loop on the main task.
 #include "port.hpp"  // first: pulls in FreeRTOS.h ahead of task.h/queue.h
 
+#include <algorithm>
+#include <cstdlib>
+#include <optional>
 #include <string>
 #include <string_view>
 
+#include "dial.hpp"
 #include "driver/i2c_master.h"
 #include "driver/usb_serial_jtag.h"
 #include "esp_app_desc.h"
@@ -44,6 +48,19 @@ constexpr const char* kLostReason = "disconnected";
 // The core's console command behind Hermes /new.
 constexpr std::string_view kNewSessionCommand = "new-session";
 
+// The core's volume setting, the console command that changes it, and this
+// board's level while none is saved.
+constexpr std::string_view kVolumeKey = "volume";
+constexpr std::string_view kSetVolumeCommand = "set volume ";
+constexpr int kDefaultVolume = 75;
+constexpr int kVolumeMin = 0;
+constexpr int kVolumeMax = nabu::XmosSpeaker::kMaxVolume;
+static_assert(kDefaultVolume <= kVolumeMax, "the default volume must be playable");
+// As on the stock firmware: 5 % per detent, and the dial counts as resting
+// one second after its last detent.
+constexpr int kVolumeStep = 5;
+constexpr uint32_t kDialRestMs = 1000;
+
 hgp::EspSystem g_system;
 hgp::NvsStorage g_storage;
 hgp::WsTransport g_transport;
@@ -51,10 +68,21 @@ hgp::Wifi g_wifi;
 hgp::Buttons g_buttons;
 nabu::LedRing g_ring;
 nabu::MuteSwitch g_mute;
+nabu::Dial g_dial;
 nabu::XmosControl g_xmos;
 nabu::XmosMic g_mic;
 nabu::Aic3204 g_dac;
 nabu::XmosSpeaker g_speaker;
+
+// A volume change from the dial that is not saved yet.
+struct VolumeTurn {
+  bool active = false;
+  int saved = 0;
+  int level = 0;
+  uint32_t moved_at_ms = 0;
+};
+VolumeTurn g_volume_turn;
+
 hg::Screen g_logged_screen = hg::Screen::Boot;
 std::string g_logged_hint;
 
@@ -124,7 +152,47 @@ void on_mute_changed(hg::App& app) {
   ESP_LOGI(TAG, "conversation ended: %s", reply.c_str());
 }
 
+// The core falls back to its own default while no volume is saved; saving this
+// board's default first makes the core start from it.
+void save_default_volume() {
+  if (g_storage.get(kVolumeKey)) return;
+  if (!g_storage.set(kVolumeKey, std::to_string(kDefaultVolume))) ESP_LOGW(TAG, "could not save the default volume");
+}
+
+// The level the core holds: the saved setting, or the default.
+int saved_volume() {
+  const std::optional<std::string> stored = g_storage.get(kVolumeKey);
+  if (!stored) return kDefaultVolume;
+  return std::clamp(std::atoi(stored->c_str()), kVolumeMin, kVolumeMax);
+}
+
+// The dial sets the speaker at once and shows the level on the ring.
+void on_dial_turned(int detents) {
+  VolumeTurn& turn = g_volume_turn;
+  if (!turn.active) {
+    turn.active = true;
+    turn.saved = turn.level = saved_volume();
+  }
+  turn.moved_at_ms = g_system.now_ms();
+  const int level = std::clamp(turn.level + detents * kVolumeStep, kVolumeMin, kVolumeMax);
+  if (level == turn.level) return;
+  turn.level = level;
+  g_speaker.set_volume(static_cast<uint8_t>(level));
+}
+
+// Once the dial rests, the level goes through the core, which saves it and
+// keeps its own copy in step. A long turn costs a single flash write.
+void finish_volume_turn(hg::App& app) {
+  VolumeTurn& turn = g_volume_turn;
+  if (!turn.active || g_system.now_ms() - turn.moved_at_ms < kDialRestMs) return;
+  turn.active = false;
+  if (turn.level == turn.saved) return;
+  const std::string reply = app.console(std::string(kSetVolumeCommand) + std::to_string(turn.level));
+  ESP_LOGI(TAG, "volume %d%%: %s", turn.level, reply.c_str());
+}
+
 nabu::RingFrame ring_now(const hg::UiModel& model) {
+  if (g_volume_turn.active) return nabu::volume_arc(static_cast<uint8_t>(g_volume_turn.level));
   nabu::RingFrame frame = nabu::ring_frame(model.screen, g_system.now_ms());
   if (g_mute.muted()) nabu::mark_muted(frame);
   return frame;
@@ -191,6 +259,7 @@ extern "C" void app_main(void) {
 
   g_mute.begin();
   g_mic.set_muted(g_mute.muted());
+  if (!g_dial.begin()) ESP_LOGW(TAG, "running without the dial");
 
   hgp::ButtonConfig buttons;
   buttons.talk = kCenterButtonGpio;
@@ -216,6 +285,7 @@ extern "C" void app_main(void) {
   profile.mic_rate = nabu::XmosMic::kRate;
   profile.speaker_rate = nabu::XmosSpeaker::kRate;
 
+  save_default_volume();
   static hg::App app(hal, profile);
   app.on_setting_changed = [](std::string_view key) {
     if (key == kWifiSsidKey || key == kWifiPassKey) g_wifi.reconfigure();
@@ -242,6 +312,9 @@ extern "C" void app_main(void) {
     // A loss whose WsClosed event was dropped; harmless if it was delivered too.
     if (g_transport.take_lost()) app.on_transport_closed(kLostReason);
     if (g_mute.poll()) on_mute_changed(app);
+    const int detents = g_dial.poll();
+    if (detents != 0 && hal.speaker) on_dial_turned(detents);
+    finish_volume_turn(app);
     g_buttons.poll(app);
     g_wifi.tick(g_system.now_ms());
     app.tick();

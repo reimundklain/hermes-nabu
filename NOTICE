@@ -30,6 +30,7 @@ on come from ESPHome ("esphome", https://github.com/esphome/esphome) and the
 stock Voice PE firmware ("voice-pe",
 https://github.com/esphome/home-assistant-voice-pe):
   pin mapping                    voice-pe: home-assistant-voice.yaml
+  dial steps and volume arc      voice-pe: home-assistant-voice.yaml
   LED colors and animations      voice-pe: home-assistant-voice.yaml
   AIC3204 DAC init sequence      esphome: esphome/components/aic3204
   XMOS pipeline-stage protocol   voice-pe: esphome/components/voice_kit

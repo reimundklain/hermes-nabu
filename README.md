@@ -114,6 +114,7 @@ You can always reflash the device, including back to the stock firmware:
 | `main/xmos_*`            | XMOS control, mic in and speaker out over I2S  |
 | `main/aic3204.*`         | Speaker DAC setup and volume                   |
 | `main/mute_switch.*`     | Hardware mute switch                           |
+| `main/dial.*`            | Rotary dial, decoded by the pulse counter      |
 | `main/net_diag.*`        | Wi-Fi, IP and DNS facts for the `diag` command |
 | `main/idf_component.yml` | Component dependencies, Gadget core pin        |
 | `dependencies.lock`      | Resolved component versions                    |
@@ -162,7 +163,7 @@ Each step gets flashed and tested on the device before moving on.
 - [ ] On-device wake word (microWakeWord on TFLite Micro, fed
       from XMOS channel 1). Open: tap mode vs. a core API to start a
       hands-free turn; detection while a reply plays
-- [ ] Rotary dial read through PCNT: volume by default, the level shown as
+- [x] Rotary dial read through PCNT: volume by default, the level shown as
       an arc on the ring and saved once the dial rests
 - [ ] Dial answers prompts: turn to pick yes or no on the ring, press to
       confirm
